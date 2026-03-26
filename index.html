@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tiny AI Command Bot</title>
+    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        
+        :root {
+            --bg: #2a1a3d;
+            --accent: #8b5cf6;
+            --dark: #1e1b4b;
+            --text: #e0d4ff;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'VT323', monospace;
+            line-height: 1.4;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            background: var(--dark);
+            padding: 12px 16px;
+            text-align: center;
+            border-bottom: 3px solid var(--accent);
+            box-shadow: 0 4px 0 #000;
+        }
+        
+        h1 {
+            font-size: 28px;
+            color: var(--accent);
+            text-shadow: 3px 3px 0 #000;
+        }
+        
+        .subtitle {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        
+        .main {
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow: hidden;
+        }
+        
+        .upload-area {
+            border: 4px dashed var(--accent);
+            border-radius: 8px;
+            padding: 24px 16px;
+            text-align: center;
+            background: var(--dark);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .upload-area:hover {
+            background: #3a2a4d;
+            transform: scale(1.02);
+        }
+        
+        .upload-area.dragover {
+            background: #4a3a5d;
+            border-color: #c4b5fd;
+        }
+        
+        .status {
+            font-size: 15px;
+            min-height: 22px;
+            text-align: center;
+            color: #a78bfa;
+        }
+        
+        .commands-list {
+            flex: 1;
+            background: var(--dark);
+            border: 3px solid #4c3a6e;
+            border-radius: 8px;
+            padding: 12px;
+            overflow-y: auto;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+        
+        .command-item {
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            background: rgba(139, 92, 246, 0.1);
+            border-left: 6px solid var(--accent);
+            cursor: pointer;
+        }
+        
+        .command-item:hover {
+            background: rgba(139, 92, 246, 0.25);
+        }
+        
+        .query-section {
+            background: var(--dark);
+            padding: 16px;
+            border-radius: 8px;
+            border: 3px solid var(--accent);
+        }
+        
+        .query-input {
+            width: 100%;
+            background: #1a1633;
+            border: 3px solid #6d4fc2;
+            color: white;
+            padding: 14px 16px;
+            font-family: 'VT323', monospace;
+            font-size: 18px;
+            margin-bottom: 12px;
+            resize: none;
+            height: 68px;
+        }
+        
+        .query-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.3);
+        }
+        
+        .btn-row {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            flex: 1;
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 14px;
+            font-family: 'VT323', monospace;
+            font-size: 18px;
+            cursor: pointer;
+            border-radius: 4px;
+            box-shadow: 4px 4px 0 #000;
+            transition: all 0.1s;
+        }
+        
+        button:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #000;
+        }
+        
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .speak-btn {
+            background: #22c55e;
+        }
+        
+        .result {
+            margin-top: 12px;
+            background: #1a1633;
+            padding: 14px;
+            border: 3px solid #22c55e;
+            font-size: 17px;
+            min-height: 60px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        .spinner {
+            display: none;
+            width: 24px;
+            height: 24px;
+            border: 4px solid #4c3a6e;
+            border-top: 4px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .footer {
+            padding: 10px;
+            text-align: center;
+            font-size: 13px;
+            opacity: 0.7;
+            background: var(--dark);
+        }
+        
+        .log {
+            font-size: 13px;
+            color: #94a3b8;
+            margin-top: 8px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>TINY AI CMD BOT</h1>
+        <div class="subtitle">JioPhone F220B • Offline Semantic Commands</div>
+    </header>
+    
+    <div class="main">
+        <!-- Upload -->
+        <div id="uploadArea" class="upload-area">
+            <div style="font-size: 42px; margin-bottom: 8px;">📁</div>
+            <div style="font-size: 18px; margin-bottom: 4px;">Upload commands.txt</div>
+            <div style="font-size: 14px; opacity: 0.8;">Max 500KB • Lines become semantic chunks</div>
+            <input type="file" id="fileInput" accept=".txt" style="display: none;">
+        </div>
+        
+        <div class="status" id="status">Ready. Upload a .txt file with commands.</div>
+        
+        <!-- Commands List -->
+        <div style="margin-bottom: 8px; font-size: 16px; color: var(--accent);">STORED COMMANDS (<span id="chunkCount">0</span>)</div>
+        <div class="commands-list" id="commandsList">
+            <div style="opacity: 0.6; text-align: center; padding: 40px 20px;">
+                No commands loaded yet.<br>
+                Upload a text file with one command/template per line.
+            </div>
+        </div>
+        
+        <!-- Query -->
+        <div class="query-section">
+            <textarea id="queryInput" class="query-input" placeholder="Type command or description... e.g. scan network 192.168.1.1"></textarea>
+            
+            <div class="btn-row">
+                <button id="searchBtn">SEARCH &amp; EXECUTE</button>
+                <button id="speakBtn" class="speak-btn">🔊 SPEAK</button>
+            </div>
+            
+            <div class="spinner" id="spinner"></div>
+            
+            <div class="result" id="result">Result will appear here...</div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <div class="log" id="log">Offline PWA • Transformers.js • all-MiniLM-L6-v2</div>
+    </div>
+
+    <script>
+        // Global variables
+        let embedder = null;
+        let chunks = []; // { text: string, embedding: Float32Array }
+        let lastQueryTime = 0;
+        let queryCount = 0;
+        const MAX_QUERIES_PER_MIN = 3;
+        const MAX_FILE_SIZE = 500 * 1024; // 500KB
+        const MAX_CHUNKS = 50;
+        
+        // DOM elements
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const statusEl = document.getElementById('status');
+        const commandsList = document.getElementById('commandsList');
+        const chunkCountEl = document.getElementById('chunkCount');
+        const queryInput = document.getElementById('queryInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const speakBtn = document.getElementById('speakBtn');
+        const resultEl = document.getElementById('result');
+        const spinner = document.getElementById('spinner');
+        const logEl = document.getElementById('log');
+        
+        // Simple cosine similarity
+        function cosineSimilarity(a, b) {
+            if (!a || !b || a.length !== b.length) return 0;
+            let dot = 0, normA = 0, normB = 0;
+            for (let i = 0; i < a.length; i++) {
+                dot += a[i] * b[i];
+                normA += a[i] * a[i];
+                normB += b[i] * b[i];
+            }
+            if (normA === 0 || normB === 0) return 0;
+            return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+        }
+        
+        // Initialize Transformers.js model
+        async function initModel() {
+            if (embedder) return embedder;
+            try {
+                statusEl.textContent = "Loading AI model (~24MB, one-time)...";
+                spinner.style.display = 'block';
+                
+                // Use Xenova/transformers via CDN (latest compatible)
+                const { pipeline } = Xenova;
+                embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+                    quantized: true,
+                    progress_callback: (data) => {
+                        if (data.status === 'ready') {
+                            statusEl.textContent = "AI model loaded successfully!";
+                        }
+                    }
+                });
+                
+                spinner.style.display = 'none';
+                statusEl.textContent = "Model ready. Upload commands.txt";
+                logEl.textContent = "✓ Transformers.js + all-MiniLM-L6-v2 loaded";
+                return embedder;
+            } catch (e) {
+                console.error(e);
+                statusEl.textContent = "Model load failed. Check internet first time.";
+                spinner.style.display = 'none';
+                return null;
+            }
+        }
+        
+        // Get embedding
+        async function getEmbedding(text) {
+            const model = await initModel();
+            if (!model) throw new Error("Model not loaded");
+            
+            const output = await model(text, {
+                pooling: 'mean',
+                normalize: true
+            });
+            
+            return output.data; // Float32Array
+        }
+        
+        // Simple chunking: one line = one chunk, limit to MAX_CHUNKS
+        function parseCommands(text) {
+            const lines = text.split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 3 && !line.startsWith('#'));
+            
+            return lines.slice(0, MAX_CHUNKS);
+        }
+        
+        // Render command list
+        function renderCommands() {
+            commandsList.innerHTML = '';
+            chunkCountEl.textContent = chunks.length;
+            
+            if (chunks.length === 0) {
+                commandsList.innerHTML = `<div style="opacity:0.6;text-align:center;padding:40px 20px;">No commands loaded.<br>Upload commands.txt</div>`;
+                return;
+            }
+            
+            chunks.forEach((chunk, index) => {
+                const div = document.createElement('div');
+                div.className = 'command-item';
+                div.textContent = chunk.text.length > 80 ? chunk.text.substring(0, 77) + '...' : chunk.text;
+                div.title = chunk.text;
+                div.onclick = () => {
+                    queryInput.value = chunk.text;
+                    performSearch(chunk.text);
+                };
+                commandsList.appendChild(div);
+            });
+        }
+        
+        // IP regex extraction and template replacement (simple)
+        function extractAndTemplate(query, matchedCommand) {
+            // Basic IP regex
+            const ipRegex = /\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g;
+            const ips = [...query.matchAll(ipRegex)].map(m => m[0]);
+            
+            let finalCmd = matchedCommand;
+            
+            if (ips.length > 0) {
+                // Simple replacement: replace "IP" or first occurrence of placeholder with first IP
+                finalCmd = finalCmd.replace(/IP|target|host|addr/gi, ips[0]);
+            }
+            
+            // Example mapping for common shortcuts
+            if (matchedCommand.toLowerCase().includes('nmap') && query.toLowerCase().includes('scan')) {
+                finalCmd = matchedCommand.replace('nmap', 'nmap -sS -T4');
+            }
+            
+            return finalCmd || matchedCommand;
+        }
+        
+        // Perform semantic search
+        async function performSearch(query) {
+            if (!query || query.trim().length < 3) {
+                resultEl.textContent = "Query too short.";
+                return;
+            }
+            
+            // DoS protection
+            const now = Date.now();
+            if (now - lastQueryTime < 20000) { // ~3 queries per minute rough check
+                queryCount++;
+                if (queryCount > MAX_QUERIES_PER_MIN) {
+                    resultEl.textContent = "Rate limited. Wait 60 seconds.";
+                    return;
+                }
+            } else {
+                queryCount = 1;
+            }
+            lastQueryTime = now;
+            
+            spinner.style.display = 'block';
+            searchBtn.disabled = true;
+            resultEl.textContent = "Embedding query...";
+            
+            try {
+                const queryEmb = await getEmbedding(query.trim());
+                
+                if (chunks.length === 0) {
+                    resultEl.textContent = "No commands loaded. Upload a .txt file first.";
+                    return;
+                }
+                
+                let bestScore = -1;
+                let bestChunk = null;
+                
+                for (const chunk of chunks) {
+                    const score = cosineSimilarity(queryEmb, chunk.embedding);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestChunk = chunk;
+                    }
+                }
+                
+                if (bestScore < 0.3) {
+                    resultEl.textContent = "No good match found.\nTry rephrasing or upload better commands.";
+                } else {
+                    const finalCommand = extractAndTemplate(query, bestChunk.text);
+                    resultEl.innerHTML = `<strong>Matched:</strong> ${bestChunk.text}<br><br><strong>→ Command:</strong> ${finalCommand}`;
+                    
+                    // Auto speak the final command
+                    setTimeout(() => speak(finalCommand), 400);
+                }
+            } catch (err) {
+                console.error(err);
+                resultEl.textContent = "Error during search: " + err.message;
+            } finally {
+                spinner.style.display = 'none';
+                searchBtn.disabled = false;
+            }
+        }
+        
+        // Text-to-Speech (Web Speech API - works on most mobile browsers)
+        function speak(text) {
+            if (!('speechSynthesis' in window)) {
+                alert("Speech not supported in this browser.");
+                return;
+            }
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.95;
+            utterance.pitch = 1.05;
+            utterance.volume = 0.9;
+            speechSynthesis.speak(utterance);
+        }
+        
+        // Handle file upload
+        async function handleFile(file) {
+            if (!file) return;
+            
+            if (file.size > MAX_FILE_SIZE) {
+                statusEl.textContent = "File too large! Max 500KB.";
+                return;
+            }
+            
+            if (!file.name.endsWith('.txt')) {
+                statusEl.textContent = "Only .txt files allowed.";
+                return;
+            }
+            
+            statusEl.textContent = "Reading file...";
+            
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const text = e.target.result;
+                const lines = parseCommands(text);
+                
+                if (lines.length === 0) {
+                    statusEl.textContent = "No valid commands found in file.";
+                    return;
+                }
+                
+                statusEl.textContent = `Embedding ${lines.length} commands...`;
+                spinner.style.display = 'block';
+                
+                chunks = [];
+                
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    try {
+                        const emb = await getEmbedding(line);
+                        chunks.push({ text: line, embedding: emb });
+                    } catch (err) {
+                        console.warn("Failed to embed:", line);
+                    }
+                }
+                
+                spinner.style.display = 'none';
+                renderCommands();
+                statusEl.textContent = `Loaded ${chunks.length} semantic commands. Ready!`;
+                logEl.textContent = `✓ ${chunks.length} chunks embedded`;
+            };
+            
+            reader.readAsText(file);
+        }
+        
+        // Service Worker for Offline PWA (single file friendly)
+        function registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                const swCode = `
+self.addEventListener('install', event => {
+    event.waitUntil(
+        caches.open('tiny-ai-cmd-bot-v1').then(cache => {
+            return cache.addAll([
+                '/',
+                '/index.html'
+            ]);
+        })
+    );
+});
+
+self.addEventListener('fetch', event => {
+    event.respondWith(
+        caches.match(event.request).then(response => {
+            return response || fetch(event.request);
+        })
+    );
+});
+                `;
+                
+                // For single-file, we can skip full SW registration or use data URL trick, but most Jio browsers support basic cache.
+                // For real GitHub Pages, save sw.js separately. This is simplified.
+                console.log("%cService Worker ready for offline use (save as sw.js for full PWA)", "color:#8b5cf6");
+            }
+        }
+        
+        // Event listeners
+        function setupListeners() {
+            // Upload click
+            uploadArea.addEventListener('click', () => fileInput.click());
+            
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFile(e.target.files[0]);
+                }
+            });
+            
+            // Drag & drop
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) {
+                    handleFile(e.dataTransfer.files[0]);
+                }
+            });
+            
+            // Search button
+            searchBtn.addEventListener('click', () => {
+                performSearch(queryInput.value.trim());
+            });
+            
+            // Enter key
+            queryInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    performSearch(queryInput.value.trim());
+                }
+            });
+            
+            // Speak button
+            speakBtn.addEventListener('click', () => {
+                const text = resultEl.textContent.trim();
+                if (text && text !== "Result will appear here...") {
+                    speak(text);
+                } else if (queryInput.value.trim()) {
+                    speak(queryInput.value.trim());
+                }
+            });
+            
+            // Keyboard shortcut hint
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey && e.key === 'k') {
+                    e.preventDefault();
+                    queryInput.focus();
+                }
+            });
+        }
+        
+        // Main initialization
+        async function init() {
+            setupListeners();
+            registerServiceWorker();
+            
+            // Try to load model on start (first load needs internet)
+            setTimeout(() => {
+                initModel().catch(() => {});
+            }, 800);
+            
+            // Demo data if wanted (uncomment for testing)
+            // chunks = [{text: "nmap -sS 10.0.0.1", embedding: new Float32Array(384)}]; // placeholder
+            
+            statusEl.textContent = "Welcome! Upload commands.txt to begin. First model load needs internet.";
+        }
+        
+        // Start the app
+        window.onload = init;
+    </script>
+</body>
+  </html>
